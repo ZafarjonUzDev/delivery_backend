@@ -149,11 +149,14 @@ from apps.catalog.models import Product
 
 class Order(models.Model):
     """
-    Foydalanuvchi buyurtmasining umumiy ma'lumotlari va hayotiy tsikli (statusi).
+    Foydalanuvchi buyurtmasining umumiy ma'lumotlari, to'lov/yetkazib berish usullari
+    va hayotiy tsikli (statusi).
 
     Enterprise Standard:
-    - Status va Yaratilgan vaqti bo'yicha tezkor filterlash uchun 'db_index=True' qo'llanilgan.
-    - Buyurtmachi, yetkazib berish manzili va GPS koordinatlarini saqlaydi.
+    - Status, DeliveryType, PaymentMethod va Created_at bo'yicha tezkor filterlash 
+      va analytics uchun 'db_index=True' qo'llanilgan.
+    - Olib ketish (PICKUP) holatida manzil majburiy bo'lmasligi uchun 'delivery_address', 
+      'latitude' va 'longitude' maydonlarida null/blank moslashtirilgan.
     """
 
     class StatusChoices(models.TextChoices):
@@ -161,6 +164,14 @@ class Order(models.Model):
         IN_TRANSIT = 'in_transit', "Yo'lda"
         DELIVERED = 'delivered', 'Yetkazib berildi'
         CANCELLED = 'cancelled', 'Bekor qilindi'
+
+    class DeliveryType(models.TextChoices):
+        DELIVERY = 'delivery', 'Yetkazib berish'
+        PICKUP = 'pickup', 'Olib ketish'
+
+    class PaymentMethod(models.TextChoices):
+        CASH = 'cash', 'Naqd pul'
+        CARD = 'card', 'Click yoki Karta'
 
     customer = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -172,12 +183,28 @@ class Order(models.Model):
     delivery_phone_number = models.CharField(
         max_length=20,
         verbose_name="Muloqot uchun tel. raqam",
-        help_text="Kuryer bog'lanishi uchun mo'ljallangan telefon raqami."
+        help_text="Kuryer yoki restoran bog'lanishi uchun mo'ljallangan telefon raqami."
+    )
+    delivery_type = models.CharField(
+        max_length=20,
+        choices=DeliveryType.choices,
+        default=DeliveryType.DELIVERY,
+        db_index=True,
+        verbose_name="Yetkazib berish turi",
+        help_text="Buyurtmani yetkazib berish yoki mijoz o'zi olib ketishi."
+    )
+    payment_method = models.CharField(
+        max_length=20,
+        choices=PaymentMethod.choices,
+        default=PaymentMethod.CASH,
+        db_index=True,
+        verbose_name="To'lov usuli",
+        help_text="To'lov shakli: Naqd pul yoki Karta/Click (terminal yoki o'tkazma)."
     )
     total_amount = models.DecimalField(
         max_digits=12,
         decimal_places=2,
-        default=0.00,
+        default=Decimal('0.00'),
         verbose_name="Umumiy summa",
         help_text="Buyurtmaning barcha mahsulotlari va xizmatlarining umumiy narxi."
     )
@@ -185,13 +212,15 @@ class Order(models.Model):
         max_length=20,
         choices=StatusChoices.choices,
         default=StatusChoices.PREPARING,
-        db_index=True,  # Status bo'yicha filterlarni tezlashtirish uchun
+        db_index=True,
         verbose_name="Holati",
         help_text="Buyurtmaning hozirgi bosqichi."
     )
     delivery_address = models.TextField(
+        null=True,
+        blank=True,
         verbose_name="Yetkazib berish manzili",
-        help_text="Foydalanuvchi tomonidan kiritilgan matnli manzil."
+        help_text="Foydalanuvchi kiritgan manzil (Olib ketishda bo'sh bo'lishi mumkin)."
     )
     latitude = models.DecimalField(
         max_digits=9,
@@ -211,7 +240,7 @@ class Order(models.Model):
     )
     created_at = models.DateTimeField(
         auto_now_add=True,
-        db_index=True,  # Vaqt bo'yicha saralashni tezlashtirish uchun
+        db_index=True,
         verbose_name="Yaratilgan vaqti"
     )
     updated_at = models.DateTimeField(

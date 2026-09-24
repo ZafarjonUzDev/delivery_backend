@@ -28,8 +28,16 @@
 
 
 """
-Root URL Configuration for Flora Delivery Project.
-Enterprise-grade routing architecture with Swagger/OpenAPI support.
+Root URL Configuration for Flora Delivery Backend.
+
+Ushbu fayl butun loyihaning markaziy routing (yo'naltirish) xaritasi hisoblanadi.
+Xalqaro API standartlariga (RESTful API & OpenAPI 3.0) mos ravishda versiyalangan (v1)
+hamda barcha kichik modullar (apps) va avtomatik hujjatlarni (Swagger/ReDoc) birlashtiradi.
+
+Architecture & Security Principles:
+- API Versioning: `/api/v1/` prefiksi orqali barcha biznes-mantiq ajratilgan.
+- Modular Routing: Har bir app o'z URL namespace'iga ega.
+- OpenAPI Integration: Drf-spectacular orqali real-vaqt rejimida avtomatlashtirilgan hujjat.
 """
 
 from django.conf import settings
@@ -42,27 +50,27 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
-# API v1 Patterns
+# API v1 barcha modullarini bir joyga jamlash (Modular Clean Architecture)
 api_v1_patterns = [
-    path('accounts/', include('apps.accounts.urls')),
-    path('catalog/', include('apps.catalog.urls')),
-    path('orders/', include('apps.orders.urls')),
+    path('accounts/', include('apps.accounts.urls', namespace='accounts')),
+    path('catalog/', include('apps.catalog.urls', namespace='catalog')),
+    path('orders/', include('apps.orders.urls', namespace='orders')),
 ]
 
 urlpatterns = [
-    # Admin Interface
+    # Django Admin Paneli
     path('admin/', admin.site.urls),
 
-    # OpenAPI 3.0 & Swagger Schema / Documentation
+    # Interaktiv API Hujjatlari (OpenAPI 3.0 & Swagger UI)
     path('api/v1/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/v1/docs/swagger/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/v1/docs/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 
-    # API Version 1.0 Routing
+    # API Version 1.0 Endpoint'lari
     path('api/v1/', include(api_v1_patterns)),
 ]
 
-# Debug mode'da Media va Static fayllarni uzatish
+# Development rejimida static va media fayllarga ishlov berish
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

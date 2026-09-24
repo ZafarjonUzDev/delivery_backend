@@ -1,27 +1,85 @@
+# ==============================================================================
+# Single-Tenant White-Label Yetkazib Berish Platformasi - Ko'p Konteynarli Arxitektura
+# ==============================================================================
+# Arxitektura Umumiy Ko'rinishi:
+# - Frontend: Nginx Teskari Proksi (Reverse Proxy) va Statik Web App (Port 80)
+# - Web (Backend): Django REST Framework Ilova Serveri (Port 8000)
+# - DB (Database): PostgreSQL 16 Relatsion Ma'lumotlar Bazasi MHS (Port 5432)
+#
+# Standartlarga Moslik (Standards Compliance):
+# - IaC (Infrastructure as Code) O'zini-Hujjatlashtirish Standarti
+# - Konteynarlar Holatini Tekshirish va Bog'liqliklar Boshqaruvi (service_healthy)
+# - Izolyatsiyalangan Servis Tarmoqlari va Ma'lumotlar Barqarorligi (Volume Persistence)
+# ==============================================================================
+
 services:
+  # ----------------------------------------------------------------------------
+  # 1. MA'LUMOTLAR BAZASI SERVISI (PostgreSQL Engine)
+  # ----------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: flora_delivery_db
+    restart: unless-stopped
+    volumes:
+      # Ma'lumotlar bazasi fayllarini konteyner o'chsada saqlab qolish uchun persistent volume
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-delivery_db}
+      POSTGRES_USER: ${POSTGRES_USER:-delivery_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-delivery_pass_2026}
+    ports:
+      - "5432:5432"
+    # Enterprise Healthcheck: PostgreSQL shunchaki yonishini emas, so'rovlarni 
+    # qabul qilishga to'liq tayyorligini (pg_isready) tekshirish mexanizmi.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-delivery_user} -d ${POSTGRES_DB:-delivery_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------------------
+  # 2. BACKEND API SERVISI (Django REST Framework)
+  # ----------------------------------------------------------------------------
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: flora_delivery_backend
+    restart: unless-stopped
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
+      # Ishchi kodni konteyner ichiga o'rnatish (Development'da real-vaqt rejimida o'zgarish uchun)
       - .:/app
     ports:
       - "8000:8000"
     env_file:
       - .env
+    # DB faqatgina ishga tushib qolmay, so'rovlarni qabul qilishga to'liq tayyor (healthy)
+    # bo'lgandagina Backend servisi ishga tushiriladi.
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
-  db:
-    image: postgres:16-alpine
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_DB=delivery_db
-      - POSTGRES_USER=delivery_user
-      - POSTGRES_PASSWORD=delivery_pass_2026
+  # ----------------------------------------------------------------------------
+  # 3. FRONTEND MIJOZ SERVISI (Nginx Reverse Proxy & Static Web UI)
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: flora_delivery_frontend
+    restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "80:80"
+    volumes:
+      # Frontend statik manbalarini Nginx'ga ulash (Live reload va tezkor ishlash uchun)
+      - ./frontend:/usr/share/nginx/html
+    depends_on:
+      - web
 
+# ------------------------------------------------------------------------------
+# VOLUMES KONFIGURATSIYASI (Barqaror Xotira Boshqaruvi)
+# ------------------------------------------------------------------------------
 volumes:
   postgres_data:
-
+    driver: local
