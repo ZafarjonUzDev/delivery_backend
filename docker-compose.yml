@@ -42,14 +42,16 @@ services:
   # ----------------------------------------------------------------------------
   web:
     build:
-      context: .
-      dockerfile: Dockerfile.backend
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: flora_delivery_backend
     restart: unless-stopped
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
-      # Ishchi kodni konteyner ichiga o'rnatish (Development'da real-vaqt rejimida o'zgarish uchun)
-      - .:/app
+      # Ishchi backend kodini konteyner ichiga o'rnatish (Live Reload uchun)
+      - ./backend:/app
+      # Yuklangan media fayllarni (mahsulot rasmlari va hokazo) saqlash uchun volume
+      - media_data:/app/media
     ports:
       - "8000:8000"
     env_file:
@@ -65,8 +67,8 @@ services:
   # ----------------------------------------------------------------------------
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend
+      context: ./frontend
+      dockerfile: Dockerfile
     container_name: flora_delivery_frontend
     restart: unless-stopped
     ports:
@@ -82,4 +84,6 @@ services:
 # ------------------------------------------------------------------------------
 volumes:
   postgres_data:
+    driver: local
+  media_data:
     driver: local
